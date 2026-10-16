@@ -126,7 +126,7 @@ Repeat the dry-run on the real file after applying. When testing from Git Bash, 
 ## 10. Open items
 
 - [x] Jacks approves the toggle (2026-10-15)
-- [ ] Jacks copies `hook/session-orientation.ps1` over `~/.claude/hooks/session-orientation.ps1`, then dry-runs it (an agent may not edit the live hook)
+- [x] Jacks copies `hook/session-orientation.ps1` over `~/.claude/hooks/session-orientation.ps1`, then dry-runs it (an agent may not edit the live hook)
 - [ ] Create the sandbox repo plus its neutral CLAUDE.md
 - [ ] Choose topic Q for T1 and finalize the prompt wording
 - [ ] Fill in predictions, then commit (pre-registration)
@@ -138,3 +138,4 @@ Repeat the dry-run on the real file after applying. When testing from Git Bash, 
 - Demand characteristics when the participant is a language model: can you study a system you've already told what you value?
 - Why "it said X" isn't "it has X," and what kind of experiment closes that gap (ground truth the model can't infer)
 - Running a 20-session pilot honestly: what a null result would mean for the hook, and for the ethics behind it
+- Does built rapport measurably influence language model outputs?
