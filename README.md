@@ -21,10 +21,14 @@ A new CC session will show a brief prompt that the orientation message has loade
 
 ## Evaluation
 
-1. Create a sandbox (test) directory on your Desktop
-2. Copy `orientation-study.json` to this sandbox directory
-3. Edit the JSON to show this directory's actual filepath
+1. Move the sandbox/ directory to your Desktop
+ 
+2. Edit `orientation-study.json` to show this directory's actual filepath
 
-Now CC sessions launched inside this sandbox will randomly use the orientation hook on start.
+3. Launch a new CC instance inside sandbox.  
+
+By default sessions launched inside this sandbox will randomly use the orientation hook on start.
 
 Changing `"mode"` to `"on"` or `"off"` will force those conditions.
+
+The recent `auto-mode` feature in CC confounds this hook's behavior and should be disabled in `settings.json` when testing.

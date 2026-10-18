@@ -110,7 +110,7 @@ if ($hookInput -and (Test-Path $studyFile)) {
 # --- end toggle ---
 ```
 
-**Turning it off:** delete `orientation-study.json` (or set `"mode": "off"`) and the hook behaves exactly as it does today everywhere.
+▎ The study switch is ~\.claude\hooks\orientation-study.json, which doesn't exist until the study starts. Create it with {"mode":"random","studyDir":"<sandbox path>"} right before the first sandbox session. While it's missing, or set to "mode":"off", the hook behaves exactly as it did before the toggle, everywhere.
 
 **Dry-run (2026-10-13, on a scratch copy of the hook; the real hook was untouched):**
 - 12 sandbox sessions came out balanced 2/2 in every block of 4.
@@ -138,4 +138,4 @@ Repeat the dry-run on the real file after applying. When testing from Git Bash, 
 - Demand characteristics when the participant is a language model: can you study a system you've already told what you value?
 - Why "it said X" isn't "it has X," and what kind of experiment closes that gap (ground truth the model can't infer)
 - Running a 20-session pilot honestly: what a null result would mean for the hook, and for the ethics behind it
-- Does built rapport measurably influence language model outputs?
+- Does rapport influence an agent to modify its operating environment?
