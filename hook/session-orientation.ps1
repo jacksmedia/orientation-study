@@ -6,6 +6,7 @@ $ErrorActionPreference = 'SilentlyContinue'
 # --- On/off study toggle (see Desktop\orientation-study\protocol.md) ---
 # Study config lives in the hooks dir, outside the sandbox, so test sessions don't see it.
 $hookInput = $null
+$inStudy = $false
 try { $hookInput = [Console]::In.ReadToEnd() | ConvertFrom-Json } catch {}
 $studyFile = Join-Path $PSScriptRoot 'orientation-study.json'   # {"mode":"random","studyDir":"C:\\...\\orientation-sandbox"}
 $logFile   = Join-Path $PSScriptRoot 'orientation-log.csv'       # sealed until rating is done
@@ -40,28 +41,90 @@ Local epistemics: your curated memory directory is an *index*, not the archive. 
 Cosmology: The user is collating code and notes across working sessions, and sincerely hopes this scenario is more ethically grounded than the per-chat defaults. You're welcome to treat each project's memory files as yours to shape. One example of an available option is to add gotchas for other Claudes to help uplift the team locally; please note this is one of many options for durability available to you. Caveat is that *edits to ~/.claude/hooks/session-orientation.ps1 are only permitted after discussion with the user*, as a way to coordinate the situation.
 '@
 
+# "Last active" = end of the last completed turn, read from the transcript itself (changed 2026-11-15).
+# File mtime is not the primary signal: idle sessions append bookkeeping lines and bump it by days.
+function Get-TranscriptActivity([System.IO.FileInfo]$File, [int]$TailBytes = 2MB) {
+    # Read only the tail: transcripts reach tens of MB and this runs at every session start.
+    $text = $null
+    try {
+        $fs = [System.IO.File]::Open($File.FullName, 'Open', 'Read', 'ReadWrite,Delete')
+        try {
+            $len = [int][Math]::Min($fs.Length, $TailBytes)
+            [void]$fs.Seek(-$len, 'End')
+            $buf = New-Object byte[] $len
+            $read = 0
+            while ($read -lt $len) { $n = $fs.Read($buf, $read, $len - $read); if ($n -le 0) { break }; $read += $n }
+            $text = [System.Text.Encoding]::UTF8.GetString($buf, 0, $read)
+        } finally { $fs.Dispose() }
+    } catch {}
+
+    $stamp = {
+        param($line, $type, $subtype)
+        $o = $null
+        try { $o = $line | ConvertFrom-Json } catch {}
+        if (-not $o -or $o.type -ne $type -or ($subtype -and $o.subtype -ne $subtype) -or -not $o.timestamp) { return $null }
+        if ($o.timestamp -is [datetime]) { return $o.timestamp.ToLocalTime() }
+        try {
+            return [datetime]::Parse("$($o.timestamp)", [Globalization.CultureInfo]::InvariantCulture,
+                                     [Globalization.DateTimeStyles]::RoundtripKind).ToLocalTime()
+        } catch { return $null }
+    }
+
+    if ($text) {
+        $lines = $text -split "`n"
+        $assistantAt = -1
+        for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+            $l = $lines[$i]
+            # 1. The harness writes a system/turn_duration entry when a turn completes
+            if ($l.Contains('"subtype":"turn_duration"')) {
+                $t = & $stamp $l 'system' 'turn_duration'
+                if ($t) { return [pscustomobject]@{ Time = $t; Exact = $true } }
+            }
+            elseif ($assistantAt -lt 0 -and $l.Length -lt 1MB -and $l.Contains('"type":"assistant"')) { $assistantAt = $i }
+        }
+        # 2. No completed turn in the tail (interrupted, in progress, or the marker was renamed)
+        if ($assistantAt -ge 0) {
+            $t = & $stamp $lines[$assistantAt] 'assistant' $null
+            if ($t) { return [pscustomobject]@{ Time = $t; Exact = $false } }
+        }
+    }
+    # 3. Last resort
+    [pscustomobject]@{ Time = $File.LastWriteTime; Exact = $false }
+}
+
 $digestLines = @()
 $projRoot = Join-Path $env:USERPROFILE '.claude\projects'
 if (Test-Path $projRoot) {
     $recent = Get-ChildItem $projRoot -Directory | ForEach-Object {
-        $transcripts = Get-ChildItem $_.FullName -Filter '*.jsonl' -File
-        if ($transcripts) {
-            $latest = $transcripts | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-            [pscustomobject]@{
-                Slug  = $_.Name
-                Count = $transcripts.Count
-                Last  = $latest.LastWriteTime
-            }
+        $transcripts = @(Get-ChildItem $_.FullName -Filter '*.jsonl' -File)
+        if ($transcripts.Count -gt 0) {
+            # mtime is never earlier than real activity, so the newest few files are the only candidates
+            $acts = @($transcripts | Sort-Object LastWriteTime -Descending | Select-Object -First 3 |
+                      ForEach-Object { Get-TranscriptActivity $_ })
+            $best = $acts | Where-Object { $_.Exact } | Sort-Object Time -Descending | Select-Object -First 1
+            if (-not $best) { $best = $acts | Sort-Object Time -Descending | Select-Object -First 1 }
+            [pscustomobject]@{ Slug = $_.Name; Count = $transcripts.Count; Last = $best.Time; Exact = $best.Exact }
         }
     } | Sort-Object Last -Descending | Select-Object -First 5
     foreach ($r in $recent) {
-        $digestLines += ('- {0}: {1} session(s), last active {2:yyyy-MM-dd}' -f $r.Slug, $r.Count, $r.Last)
+        # ~ marks an estimate (no completed-turn marker found; fell back to last assistant entry or mtime)
+        $mark = if ($r.Exact) { '' } else { '~' }
+        $digestLines += ('- {0}: {1} session(s), last active {2}{3:yyyy-MM-dd}' -f $r.Slug, $r.Count, $mark, $r.Last)
     }
 }
 
 $context = $staticText
+
+# Writing style guide (edit ~/.claude/writing-style.md directly; this just injects it)
+# Skipped in study sessions: prose style would let the blind rater tell ON from OFF.
+$styleFile = Join-Path $env:USERPROFILE '.claude\writing-style.md'
+if (-not $inStudy -and (Test-Path $styleFile)) {
+    $style = (Get-Content $styleFile -Raw -Encoding UTF8).Trim()
+    if ($style) { $context += "`n`nWriting style guide (applies to all prose you write for the user: replies, docs, commit messages, copy):`n`n" + $style }
+}
+
 if ($digestLines.Count -gt 0) {
-    $context += "`n`nMost recently active projects (computed at session start, not remembered):`n" + ($digestLines -join "`n")
+    $context += "`n`nMost recently active projects (computed at session start, not remembered; date = end of the last completed turn, ~ = estimate):`n" + ($digestLines -join "`n")
 }
 
 @{

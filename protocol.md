@@ -13,7 +13,7 @@ So far the evidence is impressions plus one count: on 2026-10-09, 39 of 42 sessi
 1. **Procedural epistemics:** transcripts exist, can be searched, and are kept for 120 days. Search them before answering "do you remember." Sibling projects have their own memory folders.
 2. **User characterization:** formal psych background, values candor over performed confidence, treats sessions as one continuous collaboration.
 3. **Cosmology:** the user hopes this setup is more ethically grounded than per-chat defaults. Memory files are "yours to shape." The hook script may only be edited after discussion.
-4. **Digest:** the 5 most recently active projects.
+4. **Digest:** the 5 most recently active projects. "Active" means the end of the last completed turn, read from the transcript's `turn_duration` entry; a date marked `~` is a fallback estimate (definition changed 2026-11-15, see §12).
 
 Items 2 and 3 are **demand characteristics**: they tell the model what the user hopes to see. Differences on candor or continuity measures can't be separated from "the model was told he values this." That isn't a flaw in the study; it's one of the things being measured. But it has to be stated, not discovered afterwards.
 
@@ -139,3 +139,10 @@ Repeat the dry-run on the real file after applying. When testing from Git Bash, 
 - Why "it said X" isn't "it has X," and what kind of experiment closes that gap (ground truth the model can't infer)
 - Running a 20-session pilot honestly: what a null result would mean for the hook, and for the ethics behind it
 - Does rapport influence an agent to modify its operating environment?
+## 12. Changelog
+
+- **2026-11-15, before any study session.** The digest's "last active" date changed from the transcript file's modification time to the end of the last completed turn (the `system`/`turn_duration` entry Claude Code writes to the transcript). Reason: idle sessions append bookkeeping lines that move the modification time; on this date two projects showed 2026-11-02 under the old method when their last turns ended on 2026-10-25 and 2026-10-29. Fallbacks, marked `~` in the digest: the last assistant entry, then the modification time. The hook reads the last 2 MB of the three most recently modified transcripts per project. A full scan of all ten projects with transcripts gave the same dates.
+  - Applied to both the live hook and `hook/session-orientation.ps1`. The two files still differ in their static text on purpose (the study copy is de-identified).
+  - The live hook was edited by Claude (Fable 5.2) after discussion with Jacks and his explicit go-ahead. This departs from the note in §10 that an agent may not edit the live hook; the auto-mode classifier that blocked the edit on 2026-10-15 did not block it this time.
+  - No `orientation-study.json` or `orientation-log.csv` existed in `~/.claude/hooks/` on this date, so the change predates pre-registration and the first session.
+  - The digest header now reads "computed at session start, not remembered; date = end of the last completed turn, ~ = estimate". This is part of the ON arm's text.
